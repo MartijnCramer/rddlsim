@@ -46,6 +46,7 @@ domain wildfire_mdp_v4 {
 		// Action costs and penalties
 		COST_CUTOUT            : {non-fluent, real, default =   -5 }; // Cost to cut-out fuel from a cell
 		COST_PUTOUT            : {non-fluent, real, default =  -10 }; // Cost to put-out a fire from a cell
+		COST_WATER			   : {non-fluent, real, default =  -25 };
 		PENALTY_TARGET_BURN    : {non-fluent, real, default = -100 }; // Penalty for each target cell that is burning  
 		PENALTY_NONTARGET_BURN : {non-fluent, real, default =   -5 }; // Penalty for each non-target cell that is burning
 	
@@ -58,17 +59,20 @@ domain wildfire_mdp_v4 {
 		// State fluents
 		burning(x_pos, y_pos)     : { state-fluent, bool, default = false }; // cell currently on fire
 		out-of-fuel(x_pos, y_pos) : { state-fluent, bool, default = false }; // cell does not have fuel to burn (i.e., cut-out or already burned)
-		
+				
 		// Action fluents
 		put-out(x_pos, y_pos) : { action-fluent, bool, default = false }; // actions to put-out out the fire
 		cut-out(x_pos, y_pos) : { action-fluent, bool, default = false }; // cut-out out the fuel
-			
+		drop-water(x_pos, y_pos) : { action-fluent, bool, default = false };
+
 	};
 
 	cpfs {
 		
 		burning'(?x, ?y) = 
-			if ( put-out(?x, ?y) ) // Intervention to put out fire?
+			if ( drop-water(?x, ?y) | (exists_{?x2: x_pos, ?y2: y_pos} (NEIGHBOR(?x, ?y, ?x2, ?y2) ^ drop-water(?x2, ?y2)) ))
+					then false
+			else if ( put-out(?x, ?y) ) // Intervention to put out fire?
 				then false
             // Modification: targets can only start to burn if at least one neighbor is on fire
             else if (~out-of-fuel(?x, ?y) ^ ~burning(?x, ?y)) // Ignition of a new fire? Depends on neighbors.
@@ -79,13 +83,18 @@ domain wildfire_mdp_v4 {
 				burning(?x, ?y); // State persists
 		
 		// Modification: only allow non-target cells to be cut-out (cannot remove fuel from targets, e.g., housing)
-		out-of-fuel'(?x, ?y) = out-of-fuel(?x, ?y) | burning(?x,?y) | (~TARGET(?x, ?y) ^ cut-out(?x, ?y));
-						
+		out-of-fuel'(?x, ?y) = out-of-fuel(?x, ?y) | burning(?x, ?y) | (~TARGET(?x, ?y) ^ cut-out(?x, ?y));
+				
 	};
+
+	action-preconditions {
+    	[ sum_{?x: x_pos, ?y: y_pos} drop-water(?x, ?y) ] <= 1;
+    };
     	
 	reward = 
  	    [sum_{?x: x_pos, ?y: y_pos} [ COST_CUTOUT*cut-out(?x, ?y) ]]
  	  + [sum_{?x: x_pos, ?y: y_pos} [ COST_PUTOUT*put-out(?x, ?y) ]]
+	  + [sum_{?x: x_pos, ?y: y_pos} [ COST_WATER*drop-water(?x, ?y) ]]
  	    // Modification: if a target is out-of-fuel, it was burnt so still penalize (since it could not have been cut-out)
  	  + [sum_{?x: x_pos, ?y: y_pos} [ PENALTY_TARGET_BURN*[ (burning(?x, ?y) | out-of-fuel(?x, ?y)) ^ TARGET(?x, ?y) ]]]
  	  + [sum_{?x: x_pos, ?y: y_pos} [ PENALTY_NONTARGET_BURN*[ burning(?x, ?y) ^ ~TARGET(?x, ?y) ]]];
