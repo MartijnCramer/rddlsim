@@ -58,6 +58,7 @@ domain wildfire_mdp_v3 {
 		// State fluents
 		burning(x_pos, y_pos)     : { state-fluent, bool, default = false }; // cell currently on fire
 		out-of-fuel(x_pos, y_pos) : { state-fluent, bool, default = false }; // cell does not have fuel to burn (i.e., cut-out or already burned)
+		almost-out-of-fuel(x_pos, y_pos) : { state-fluent, bool, default = false };
 		
 		// Action fluents
 		put-out(x_pos, y_pos) : { action-fluent, bool, default = false }; // actions to put-out out the fire
@@ -68,7 +69,7 @@ domain wildfire_mdp_v3 {
 	cpfs {
 		
 		burning'(?x, ?y) = 
-			if ( put-out(?x, ?y) ) // Intervention to put out fire?
+			if ( put-out(?x, ?y) | out-of-fuel(?x,?y) ) // Intervention to put out fire?
 				then false
             // Modification: targets can only start to burn if at least one neighbor is on fire
             else if (~out-of-fuel(?x, ?y) ^ ~burning(?x, ?y)) // Ignition of a new fire? Depends on neighbors.
@@ -79,8 +80,9 @@ domain wildfire_mdp_v3 {
 				burning(?x, ?y); // State persists
 		
 		// Modification: only allow non-target cells to be cut-out (cannot remove fuel from targets, e.g., housing)
-		out-of-fuel'(?x, ?y) = out-of-fuel(?x, ?y) | burning(?x,?y) | (~TARGET(?x, ?y) ^ cut-out(?x, ?y));
-						
+		out-of-fuel'(?x, ?y) = out-of-fuel(?x, ?y) | (almost-out-of-fuel(?x, ?y) ^ burning(?x, ?y)) | (~TARGET(?x, ?y) ^ cut-out(?x, ?y));
+		almost-out-of-fuel'(?x, ?y) = ~out-of-fuel(?x, ?y) ^ (almost-out-of-fuel(?x, ?y) | burning(?x, ?y));
+
 	};
     	
 	reward = 
