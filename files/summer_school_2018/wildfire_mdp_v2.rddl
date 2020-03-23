@@ -68,7 +68,7 @@ domain wildfire_mdp_v2 {
 	cpfs {
 		
 		burning'(?x, ?y) = 
-			if ( put-out(?x, ?y) ) // Intervention to put out fire?
+			if ( put-out(?x, ?y) | out-of-fuel(?x, ?y) ) // Intervention to put out fire?
 				then false
             // Modification: targets can only start to burn if at least one neighbor is on fire
             else if (~out-of-fuel(?x, ?y) ^ ~burning(?x, ?y)) // Ignition of a new fire? Depends on neighbors.
